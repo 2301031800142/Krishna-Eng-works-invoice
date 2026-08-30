@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Krishna Eng. Works - Billing Software</title>
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
 
@@ -15,20 +16,41 @@
             --bg-color: #525659;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Roboto', sans-serif; display: flex; height: 100vh; overflow: hidden; background-color: var(--bg-color); }
+        
+        /* Mobile-Friendly Vertical Scroll Layout */
+        body { 
+            font-family: 'Roboto', sans-serif; 
+            background-color: var(--bg-color); 
+            display: block; 
+        }
 
-        /* UI Layout (Split Screen) */
-        .control-panel { width: 450px; background: #fff; padding: 20px; overflow-y: auto; border-right: 1px solid #333; z-index: 10; display: flex; flex-direction: column; gap: 15px; }
-        .preview-panel { flex: 1; overflow-y: auto; display: flex; justify-content: center; align-items: flex-start; padding: 40px; }
+        .control-panel { 
+            width: 100%; 
+            background: #fff; 
+            padding: 20px; 
+            border-bottom: 4px solid #333; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+        }
+
+        .preview-panel { 
+            width: 100%; 
+            padding: 30px 10px; 
+            overflow-x: auto; 
+            display: flex; 
+            justify-content: center; 
+        }
 
         /* Control Panel Styles */
         .control-panel h2 { color: var(--red); margin-bottom: 10px; border-bottom: 2px solid var(--red); padding-bottom: 5px; }
         .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
-        .form-row { display: flex; gap: 10px; }
-        .form-row > div { flex: 1; }
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .form-row > div { flex: 1; min-width: 150px; }
         label { font-size: 12px; font-weight: bold; color: #555; }
         input[type="text"], input[type="number"], input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: 'Roboto', sans-serif; width: 100%; }
-        button { background: var(--red); color: white; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: background 0.2s; margin-top: 5px; }
+        button { background: var(--red); color: white; border: none; padding: 12px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: background 0.2s; margin-top: 5px; }
         button:hover { background: #b91c1c; }
         .item-entry { border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f9f9f9; position: relative; }
         .remove-btn { background: #555; font-size: 11px; padding: 4px 8px; position: absolute; right: 10px; top: 10px; }
@@ -112,16 +134,6 @@
         .terms { width: 60%; border-right: 2px solid var(--red); padding: 8px; font-size: 10px; }
         .signature { width: 40%; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; }
 
-        /* Print Specific CSS */
-        @media print {
-            body { background: white; display: block; overflow: visible; height: auto; }
-            .control-panel { display: none !important; }
-            .preview-panel { padding: 0; background: white; display: block; align-items: stretch; justify-content: flex-start; }
-            .a4-page { box-shadow: none; width: 210mm; height: 297mm; padding: 5mm; margin: 0; page-break-after: avoid; }
-            @page { size: A4 portrait; margin: 0; }
-            .tagline { background-color: var(--red) !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .gt-block { background-color: var(--red) !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
     </style>
 </head>
 <body>
@@ -211,21 +223,21 @@
             </div>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button type="button" onclick="saveAndPrint()" style="flex: 2; font-size: 16px;">Save & Print Invoice (PDF)</button>
-            <button type="button" onclick="newInvoice()" style="flex: 1; background: #555;">New Invoice</button>
+        <div style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
+            <button type="button" onclick="saveAndDownload()" style="flex: 2; font-size: 16px; min-width: 250px;">⬇ Download PDF</button>
+            <button type="button" onclick="newInvoice()" style="flex: 1; background: #555; min-width: 150px;">New Invoice</button>
         </div>
     </div>
 
     <div class="preview-panel">
-        <div class="a4-page">
+        <div class="a4-page" id="invoice-preview-element">
             <div class="invoice-container">
                 
                 <div class="header-top text-red text-sm">
                     <div>Subject to AHMEDABAD Jurisdiction</div>
                     <div style="font-weight: bold;">(M) 9979273020</div>
                 </div>
-                <div class="tagline-wrapper"><span class="tagline">TAX/RETAIL INVOICE</span></div>
+                <div class="tagline-wrapper"><span class="tagline" style="background: var(--red); color: white;">TAX/RETAIL INVOICE</span></div>
                 
                 <div class="text-center" style="margin-top: 10px;">
                     <div class="text-red font-impact text-xl main-title">Krishna Eng. Works</div>
@@ -347,7 +359,7 @@
                     
                     <div class="grand-total-bar">
                         <div class="gt-empty"></div>
-                        <div class="gt-block">
+                        <div class="gt-block" style="background: var(--red); color: white;">
                             <span>Grand Total</span>
                             <span id="out-grandtotal">0.00</span>
                         </div>
@@ -367,7 +379,7 @@
                             
                             <div style="margin-top: 10px;">
                                 <span class="text-red" style="font-weight: bold;">GSTIN No. : </span>
-                                <span class="text-red" style="font-weight: bold; font-size: 12px;">24ATOPP8211F1ZM</span>
+                                <span class="text-black" style="font-weight: bold; font-size: 12px;">24ATOPP8211F1ZM</span>
                             </div>
                         </div>
                         <div class="signature">
@@ -445,7 +457,6 @@
         }
 
         function updateInvoice() {
-            // Sync Text Inputs to Preview
             document.getElementById('out-customer').innerText = document.getElementById('in-customer').value;
             document.getElementById('out-addr1').innerText = document.getElementById('in-addr1').value;
             document.getElementById('out-addr2').innerText = document.getElementById('in-addr2').value;
@@ -462,7 +473,6 @@
             
             document.getElementById('out-paydays').innerText = document.getElementById('in-paydays').value || 7;
 
-            // Math & Render Items Table
             let subtotal = 0;
             const tbody = document.getElementById('out-items-body');
             tbody.innerHTML = '';
@@ -492,7 +502,6 @@
                 `;
             }
 
-            // Taxes & Grand Total Logic
             const pkg = parseFloat(document.getElementById('in-pkg').value) || 0;
             const taxable = subtotal + pkg;
             const cgstPct = parseFloat(document.getElementById('in-cgst').value) || 0;
@@ -532,7 +541,8 @@
             return str.trim();
         }
 
-        function saveAndPrint() {
+        // New Export Function that uses HTML2PDF for direct silent download
+        function saveAndDownload() {
             const billNo = document.getElementById('in-billno').value;
             const date = document.getElementById('in-date').value;
             const customerName = document.getElementById('in-customer').value;
@@ -545,7 +555,25 @@
             const igst = taxable * ((parseFloat(document.getElementById('in-igst').value) || 0)/100);
             const grandTotal = Math.round(taxable + cgst + sgst + igst);
 
-            db.invoices.put({ billNo, date, customerName, grandTotal }).then(() => window.print());
+            // Save to database first
+            db.invoices.put({ billNo, date, customerName, grandTotal }).then(() => {
+                
+                // Select the precise A4 preview block
+                const element = document.getElementById('invoice-preview-element');
+                
+                // Configuration to force high-resolution and strict A4 formatting
+                const opt = {
+                    margin:       0,
+                    filename:     `Invoice_${billNo}.pdf`,
+                    image:        { type: 'jpeg', quality: 1 },
+                    html2canvas:  { scale: 4, scrollY: 0 }, // Scale 4 keeps lines crisp and stops borders from disappearing
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                // Trigger the direct download
+                html2pdf().set(opt).from(element).save();
+                
+            });
         }
 
         function newInvoice() {
