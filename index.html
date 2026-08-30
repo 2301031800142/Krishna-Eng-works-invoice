@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Krishna Eng. Works - Billing Software</title>
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        /* System Variables & Reset */
+        :root {
+            --red: #dc2626;
+            --black: #000000;
+            --bg-color: #525659;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Roboto', sans-serif; display: flex; height: 100vh; overflow: hidden; background-color: var(--bg-color); }
+
+        /* UI Layout (Split Screen) */
+        .control-panel { width: 450px; background: #fff; padding: 20px; overflow-y: auto; border-right: 1px solid #333; z-index: 10; display: flex; flex-direction: column; gap: 15px; }
+        .preview-panel { flex: 1; overflow-y: auto; display: flex; justify-content: center; align-items: flex-start; padding: 40px; }
+
+        /* Control Panel Styles */
+        .control-panel h2 { color: var(--red); margin-bottom: 10px; border-bottom: 2px solid var(--red); padding-bottom: 5px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+        .form-row { display: flex; gap: 10px; }
+        .form-row > div { flex: 1; }
+        label { font-size: 12px; font-weight: bold; color: #555; }
+        input[type="text"], input[type="number"], input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: 'Roboto', sans-serif; width: 100%; }
+        button { background: var(--red); color: white; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: background 0.2s; margin-top: 5px; }
+        button:hover { background: #b91c1c; }
+        .item-entry { border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f9f9f9; position: relative; }
+        .remove-btn { background: #555; font-size: 11px; padding: 4px 8px; position: absolute; right: 10px; top: 10px; }
+
+        /* A4 Page Styling (Strict Preview & Print) */
+        .a4-page {
+            width: 210mm;
+            height: 297mm;
+            background: white;
+            padding: 10mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+            position: relative;
+        }
+        .invoice-container { border: 2px solid var(--red); height: 100%; display: flex; flex-direction: column; }
+
+        /* Typography & Colors */
+        .text-red { color: var(--red); }
+        .text-black { color: var(--black); font-weight: bold; }
+        .font-impact { font-family: 'Impact', 'Arial Black', sans-serif; transform: scaleY(1.1); }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-sm { font-size: 11px; }
+        .text-md { font-size: 14px; }
+        .text-lg { font-size: 18px; }
+        .text-xl { font-size: 38px; letter-spacing: 1px; }
+        
+        /* Section A: Header */
+        .header-top { display: flex; justify-content: space-between; padding: 4px 8px; }
+        .tagline-wrapper { display: flex; justify-content: center; margin-top: -5px; }
+        .tagline { background: var(--red); color: white; padding: 2px 15px; font-weight: bold; font-size: 14px; }
+        .main-title { margin: 5px 0; }
+        .address-bar { border-top: 2px solid var(--red); border-bottom: 2px solid var(--red); padding: 4px; margin-top: 5px; }
+
+        /* Section B: Customer Details */
+        .customer-section { display: flex; border-bottom: 2px solid var(--red); min-height: 100px; }
+        .customer-left { width: 55%; border-right: 2px solid var(--red); padding: 8px; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+        .customer-right { width: 45%; padding: 8px; position: relative; }
+        .state-code { position: absolute; top: 8px; right: 8px; }
+        
+        .underline-input { display: inline-block; border-bottom: 1px solid var(--red); min-height: 18px; line-height: 1.2; padding: 0 5px; }
+        
+        .grid-info { display: grid; grid-template-columns: 80px 1fr; row-gap: 12px; margin-top: 25px; font-size: 14px; font-weight: bold; }
+        .grid-info .text-red { font-weight: bold; }
+
+        /* Fixed Address Lines */
+        .fixed-line { display: flex; align-items: flex-end; border-bottom: 1px solid var(--red); height: 24px; padding-bottom: 2px; }
+        .fixed-text { flex: 1; overflow: hidden; white-space: nowrap; padding-left: 5px; }
+
+        /* Section C: Main Table */
+        .table-container { flex-grow: 1; display: flex; flex-direction: column; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; height: 100%; }
+        th { color: var(--red); border-bottom: 2px solid var(--red); border-right: 2px solid var(--red); padding: 6px 4px; font-size: 13px; font-weight: bold; }
+        td { border-right: 2px solid var(--red); padding: 4px; vertical-align: top; height: 25px; }
+        th:last-child, td:last-child { border-right: none; }
+        
+        /* Column Widths */
+        .col-sr { width: 45px; text-align: center; }
+        .col-part { width: auto; }
+        .col-hsn { width: 80px; text-align: center; }
+        .col-qty { width: 60px; text-align: center; }
+        .col-price { width: 80px; text-align: right; }
+        .col-amt { width: 110px; text-align: right; }
+
+        /* Section D & E: Footer Architecture */
+        .footer-section { border-top: 2px solid var(--red); display: flex; flex-direction: column; }
+        
+        .totals-grid { display: flex; border-bottom: 2px solid var(--red); }
+        .words-container { width: 60%; border-right: 2px solid var(--red); padding: 8px; display: flex; align-items: flex-start; }
+        .taxes-container { width: 40%; display: flex; flex-direction: column; }
+        .tax-row { display: flex; border-bottom: 1px solid var(--red); }
+        .tax-row:last-child { border-bottom: none; }
+        .tax-label { width: 60%; border-right: 1px solid var(--red); padding: 4px 8px; font-weight: bold; }
+        .tax-val { width: 40%; padding: 4px 8px; text-align: right; }
+        
+        .grand-total-bar { display: flex; border-bottom: 2px solid var(--red); }
+        .gt-empty { width: 60%; border-right: 2px solid var(--red); }
+        .gt-block { width: 40%; background: var(--red); display: flex; justify-content: space-between; padding: 6px 8px; color: white; font-weight: bold; font-size: 16px; }
+
+        .terms-signature { display: flex; min-height: 90px; }
+        .terms { width: 60%; border-right: 2px solid var(--red); padding: 8px; font-size: 10px; }
+        .signature { width: 40%; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; }
+
+        /* Print Specific CSS */
+        @media print {
+            body { background: white; display: block; overflow: visible; height: auto; }
+            .control-panel { display: none !important; }
+            .preview-panel { padding: 0; background: white; display: block; align-items: stretch; justify-content: flex-start; }
+            .a4-page { box-shadow: none; width: 210mm; height: 297mm; padding: 5mm; margin: 0; page-break-after: avoid; }
+            @page { size: A4 portrait; margin: 0; }
+            .tagline { background-color: var(--red) !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .gt-block { background-color: var(--red) !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="control-panel">
+        <h2>Invoice Controls</h2>
+        
+        <div class="form-group">
+            <label>Customer Name (M/s)</label>
+            <input type="text" id="in-customer" placeholder="Enter Customer Name" maxlength="50" oninput="updateInvoice()">
+        </div>
+        <div class="form-group">
+            <label>Address Line 1</label>
+            <input type="text" id="in-addr1" placeholder="City, Area, etc." maxlength="55" oninput="updateInvoice()">
+        </div>
+        <div class="form-group">
+            <label>Address Line 2</label>
+            <input type="text" id="in-addr2" placeholder="State, Pincode, etc." maxlength="55" oninput="updateInvoice()">
+        </div>
+        
+        <div class="form-group">
+            <label>GSTIN No.</label>
+            <input type="text" id="in-gstin" placeholder="24XXXXX0000X1ZX" oninput="updateInvoice()">
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Bill No.</label>
+                <input type="number" id="in-billno" oninput="updateInvoice()">
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="in-date" oninput="updateInvoice()">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>D.C. No.</label>
+                <input type="text" id="in-dc-no" oninput="updateInvoice()">
+            </div>
+            <div class="form-group">
+                <label>D.C. Date</label>
+                <input type="date" id="in-dc-date" oninput="updateInvoice()">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>P.O. No.</label>
+                <input type="text" id="in-po-no" oninput="updateInvoice()">
+            </div>
+            <div class="form-group">
+                <label>P.O. Date</label>
+                <input type="date" id="in-po-date" oninput="updateInvoice()">
+            </div>
+        </div>
+
+        <h2 style="margin-top: 15px;">Items</h2>
+        <div id="items-wrapper"></div>
+        <button type="button" onclick="addItem()">+ Add Item</button>
+
+        <h2 style="margin-top: 15px;">Additional & Taxes</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Pkg. Charge (₹)</label>
+                <input type="number" id="in-pkg" placeholder="0" oninput="updateInvoice()">
+            </div>
+            <div class="form-group">
+                <label>Payment Days</label>
+                <input type="number" id="in-paydays" value="7" oninput="updateInvoice()">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>CGST (%)</label>
+                <input type="number" id="in-cgst" value="9" oninput="updateInvoice()">
+            </div>
+            <div class="form-group">
+                <label>SGST (%)</label>
+                <input type="number" id="in-sgst" value="9" oninput="updateInvoice()">
+            </div>
+            <div class="form-group">
+                <label>IGST (%)</label>
+                <input type="number" id="in-igst" value="0" oninput="updateInvoice()">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button type="button" onclick="saveAndPrint()" style="flex: 2; font-size: 16px;">Save & Print Invoice (PDF)</button>
+            <button type="button" onclick="newInvoice()" style="flex: 1; background: #555;">New Invoice</button>
+        </div>
+    </div>
+
+    <div class="preview-panel">
+        <div class="a4-page">
+            <div class="invoice-container">
+                
+                <div class="header-top text-red text-sm">
+                    <div>Subject to AHMEDABAD Jurisdiction</div>
+                    <div style="font-weight: bold;">(M) 9979273020</div>
+                </div>
+                <div class="tagline-wrapper"><span class="tagline">TAX/RETAIL INVOICE</span></div>
+                
+                <div class="text-center" style="margin-top: 10px;">
+                    <div class="text-red font-impact text-xl main-title">Krishna Eng. Works</div>
+                    <div class="text-red text-sm" style="font-weight: bold;">MFG. REPAIRING & SERVICE PLASTIC EXTRUSION DIES AND PARTS.</div>
+                </div>
+                
+                <div class="text-center text-red address-bar text-sm" style="font-weight: bold;">
+                    27, Bal Krishna Nagar, Arbudanagar Road, Ahmedabad.
+                </div>
+
+                <div class="customer-section">
+                    <div class="customer-left">
+                        
+                        <div>
+                            <div class="fixed-line">
+                                <span class="text-red">M/s.</span> 
+                                <span class="text-black fixed-text" id="out-customer"></span>
+                            </div>
+                            <div class="fixed-line">
+                                <span class="text-black fixed-text" id="out-addr1"></span>
+                            </div>
+                            <div class="fixed-line">
+                                <span class="text-black fixed-text" id="out-addr2"></span>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: auto;">
+                            <span class="text-red">GSTIN No. :</span> 
+                            <span class="text-black underline-input" id="out-gstin" style="width: 70%; min-width: 100px; border-bottom-style: double; border-bottom-width: 3px;"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="customer-right">
+                        <div class="state-code text-red" style="font-weight: bold; font-size: 14px;">State GUJARAT Code : 24</div>
+                        <div class="grid-info">
+                            <div class="text-red">Bill No. :</div>
+                            <div class="text-black text-center underline-input" id="out-billno" style="min-width: 100px;"></div>
+                            
+                            <div class="text-red">Date :</div>
+                            <div class="text-black text-center underline-input" id="out-date" style="min-width: 100px;"></div>
+                            
+                            <div class="text-red">D.C. No. :</div>
+                            <div style="display: flex; gap: 8px; align-items: flex-end;">
+                                <div class="text-black text-center underline-input" id="out-dc-no" style="flex: 1; min-width: 0;"></div>
+                                <div class="text-red">Date :</div>
+                                <div class="text-black text-center underline-input" id="out-dc-date" style="flex: 1; min-width: 0;"></div>
+                            </div>
+                            
+                            <div class="text-red">P.O. No. :</div>
+                            <div style="display: flex; gap: 8px; align-items: flex-end;">
+                                <div class="text-black text-center underline-input" id="out-po-no" style="flex: 1; min-width: 0;"></div>
+                                <div class="text-red">Date :</div>
+                                <div class="text-black text-center underline-input" id="out-po-date" style="flex: 1; min-width: 0;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="col-sr">Sr.<br>No.</th>
+                                <th class="col-part">Particulars</th>
+                                <th class="col-hsn">HSN Code</th>
+                                <th class="col-qty">Qty.</th>
+                                <th class="col-price">Price<br>Unit</th>
+                                <th class="col-amt">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="out-items-body">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div style="border-top: 2px solid var(--red); display: flex;">
+                     <div style="width: 45px; border-right: 2px solid var(--red);"></div>
+                     <div style="flex-grow: 1; border-right: 2px solid var(--red); padding: 4px; position: relative;">
+                         <div style="position: absolute; bottom: 4px; left: 4px; font-size: 11px;">
+                             <span class="text-red">Payment with in </span>
+                             <span class="text-black underline-input" id="out-paydays" style="min-width: 30px; text-align: center;"></span>
+                             <span class="text-red"> days.</span>
+                         </div>
+                     </div>
+                     <div style="width: 80px; border-right: 2px solid var(--red);"></div>
+                     <div style="width: 250px; display: flex; flex-direction: column;">
+                         <div style="display: flex; border-bottom: 1px solid var(--red);">
+                             <div class="text-red" style="width: 140px; border-right: 2px solid var(--red); padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">Total</div>
+                             <div class="text-black" id="out-subtotal" style="width: 110px; padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">0.00</div>
+                         </div>
+                         <div style="display: flex; border-bottom: 1px solid var(--red);">
+                             <div class="text-red" style="width: 140px; border-right: 2px solid var(--red); padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">Pkg. Charge</div>
+                             <div class="text-black" id="out-pkg" style="width: 110px; padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">0.00</div>
+                         </div>
+                         <div style="display: flex; border-bottom: 1px solid var(--red);">
+                             <div class="text-red" style="width: 140px; border-right: 2px solid var(--red); padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">CGST <span id="out-cgst-pct" class="text-black">9</span>%</div>
+                             <div class="text-black" id="out-cgst-amt" style="width: 110px; padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">0.00</div>
+                         </div>
+                     </div>
+                </div>
+
+                <div class="footer-section">
+                    <div class="totals-grid">
+                        <div class="words-container">
+                            <span class="text-red" style="font-weight: bold; margin-right: 5px;">Rupees :</span>
+                            <span class="text-black text-sm" id="out-words" style="line-height: 1.5;">Zero Only.</span>
+                        </div>
+                        <div class="taxes-container text-sm">
+                            <div class="tax-row">
+                                <div class="tax-label text-red">IGST <span id="out-igst-pct" class="text-black">0</span>%</div>
+                                <div class="tax-val text-black" id="out-igst-amt">0.00</div>
+                            </div>
+                            <div class="tax-row">
+                                <div class="tax-label text-red">SGST <span id="out-igst-pct2" class="text-black">9</span>%</div>
+                                <div class="tax-val text-black" id="out-sgst-amt">0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grand-total-bar">
+                        <div class="gt-empty"></div>
+                        <div class="gt-block">
+                            <span>Grand Total</span>
+                            <span id="out-grandtotal">0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="terms-signature">
+                        <div class="terms">
+                            <div class="text-red" style="font-weight: bold; display: flex; justify-content: space-between;">
+                                <span>Terms & Conditions</span>
+                                <span>E. & O. E.</span>
+                            </div>
+                            
+                            <ol class="text-red" style="padding-left: 15px; margin: 4px 0; color: var(--red);">
+                                <li style="color: var(--red);">Subject to Ahmedabad Jurisdiction.</li>
+                                <li style="color: var(--red);">Interest @ 18% will be charged if payment is not made within given time.</li>
+                            </ol>
+                            
+                            <div style="margin-top: 10px;">
+                                <span class="text-red" style="font-weight: bold;">GSTIN No. : </span>
+                                <span class="text-red" style="font-weight: bold; font-size: 12px;">24ATOPP8211F1ZM</span>
+                            </div>
+                        </div>
+                        <div class="signature">
+                            <div class="text-red" style="font-weight: bold; font-size: 12px;">For, Krishna Eng. Works</div>
+                            <div class="text-red" style="font-weight: bold; font-size: 11px;">Authorised Signatory</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const db = new Dexie("BillingDB");
+        db.version(1).stores({ invoices: '++id, billNo, date, customerName, grandTotal' });
+
+        let items = [];
+        const MAX_PRINT_ROWS = 15; 
+
+        function initApp() {
+            document.getElementById('in-date').valueAsDate = new Date();
+            db.invoices.orderBy('id').last().then(lastInvoice => {
+                const nextBill = lastInvoice ? parseInt(lastInvoice.billNo) + 1 : 1;
+                document.getElementById('in-billno').value = nextBill;
+                updateInvoice();
+            }).catch(() => {
+                document.getElementById('in-billno').value = 1;
+                updateInvoice();
+            });
+            addItem(); 
+        }
+
+        function addItem() {
+            const id = Date.now();
+            items.push({ id, particulars: '', hsn: '', qty: 0, price: 0 });
+            renderItemInputs();
+            updateInvoice();
+        }
+
+        function removeItem(id) {
+            items = items.filter(item => item.id !== id);
+            renderItemInputs();
+            updateInvoice();
+        }
+
+        function renderItemInputs() {
+            const wrapper = document.getElementById('items-wrapper');
+            wrapper.innerHTML = '';
+            items.forEach((item, index) => {
+                wrapper.innerHTML += `
+                    <div class="item-entry form-group">
+                        <button class="remove-btn" onclick="removeItem(${item.id})">X</button>
+                        <input type="text" placeholder="Particulars" value="${item.particulars}" oninput="updateItem(${item.id}, 'particulars', this.value)">
+                        <div class="form-row">
+                            <input type="text" placeholder="HSN" value="${item.hsn}" oninput="updateItem(${item.id}, 'hsn', this.value)">
+                            <input type="number" placeholder="Qty" value="${item.qty || ''}" oninput="updateItem(${item.id}, 'qty', this.value)">
+                            <input type="number" placeholder="Price" value="${item.price || ''}" oninput="updateItem(${item.id}, 'price', this.value)">
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function updateItem(id, field, value) {
+            const item = items.find(i => i.id === id);
+            if(item) {
+                item[field] = (field === 'qty' || field === 'price') ? parseFloat(value) || 0 : value;
+                updateInvoice();
+            }
+        }
+
+        function formatDate(dateString) {
+            return dateString ? dateString.split('-').reverse().join('-') : '';
+        }
+
+        function updateInvoice() {
+            // Sync Text Inputs to Preview
+            document.getElementById('out-customer').innerText = document.getElementById('in-customer').value;
+            document.getElementById('out-addr1').innerText = document.getElementById('in-addr1').value;
+            document.getElementById('out-addr2').innerText = document.getElementById('in-addr2').value;
+            
+            document.getElementById('out-gstin').innerText = document.getElementById('in-gstin').value;
+            document.getElementById('out-billno').innerText = document.getElementById('in-billno').value;
+            document.getElementById('out-date').innerText = formatDate(document.getElementById('in-date').value);
+            
+            document.getElementById('out-dc-no').innerText = document.getElementById('in-dc-no').value;
+            document.getElementById('out-dc-date').innerText = formatDate(document.getElementById('in-dc-date').value);
+            
+            document.getElementById('out-po-no').innerText = document.getElementById('in-po-no').value;
+            document.getElementById('out-po-date').innerText = formatDate(document.getElementById('in-po-date').value);
+            
+            document.getElementById('out-paydays').innerText = document.getElementById('in-paydays').value || 7;
+
+            // Math & Render Items Table
+            let subtotal = 0;
+            const tbody = document.getElementById('out-items-body');
+            tbody.innerHTML = '';
+
+            items.forEach((item, index) => {
+                const amt = item.qty * item.price;
+                subtotal += amt;
+                tbody.innerHTML += `
+                    <tr class="text-black">
+                        <td class="col-sr">${index + 1}</td>
+                        <td class="col-part" style="text-align: left; font-weight: normal;">${item.particulars}</td>
+                        <td class="col-hsn">${item.hsn}</td>
+                        <td class="col-qty">${item.qty || ''}</td>
+                        <td class="col-price">${item.price ? item.price.toFixed(2) : ''}</td>
+                        <td class="col-amt">${amt ? amt.toFixed(2) : ''}</td>
+                    </tr>
+                `;
+            });
+
+            const blankRowsCount = Math.max(0, MAX_PRINT_ROWS - items.length);
+            for(let i=0; i < blankRowsCount; i++) {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="col-sr"></td><td class="col-part"></td><td class="col-hsn"></td>
+                        <td class="col-qty"></td><td class="col-price"></td><td class="col-amt"></td>
+                    </tr>
+                `;
+            }
+
+            // Taxes & Grand Total Logic
+            const pkg = parseFloat(document.getElementById('in-pkg').value) || 0;
+            const taxable = subtotal + pkg;
+            const cgstPct = parseFloat(document.getElementById('in-cgst').value) || 0;
+            const sgstPct = parseFloat(document.getElementById('in-sgst').value) || 0;
+            const igstPct = parseFloat(document.getElementById('in-igst').value) || 0;
+
+            const cgstAmt = taxable * (cgstPct / 100);
+            const sgstAmt = taxable * (sgstPct / 100);
+            const igstAmt = taxable * (igstPct / 100);
+            const grandTotal = Math.round(taxable + cgstAmt + sgstAmt + igstAmt);
+
+            document.getElementById('out-subtotal').innerText = subtotal.toFixed(2);
+            document.getElementById('out-pkg').innerText = pkg.toFixed(2);
+            document.getElementById('out-cgst-pct').innerText = cgstPct;
+            document.getElementById('out-cgst-amt').innerText = cgstAmt.toFixed(2);
+            document.getElementById('out-igst-pct2').innerText = sgstPct; 
+            document.getElementById('out-sgst-amt').innerText = sgstAmt.toFixed(2);
+            document.getElementById('out-igst-pct').innerText = igstPct;
+            document.getElementById('out-igst-amt').innerText = igstAmt.toFixed(2);
+            
+            document.getElementById('out-grandtotal').innerText = `₹ ${grandTotal.toFixed(2)}`;
+            document.getElementById('out-words').innerText = numberToWords(grandTotal) + " Only.";
+        }
+
+        function numberToWords(num) {
+            if (num === 0) return "Zero";
+            const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
+            const b = ['','','Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
+            if ((num = num.toString()).length > 9) return 'Overflow';
+            n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+            if (!n) return; var str = '';
+            str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
+            str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
+            str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
+            str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
+            str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+            return str.trim();
+        }
+
+        function saveAndPrint() {
+            const billNo = document.getElementById('in-billno').value;
+            const date = document.getElementById('in-date').value;
+            const customerName = document.getElementById('in-customer').value;
+            
+            const subtotal = items.reduce((acc, it) => acc + (it.qty * it.price), 0);
+            const pkg = parseFloat(document.getElementById('in-pkg').value) || 0;
+            const taxable = subtotal + pkg;
+            const cgst = taxable * ((parseFloat(document.getElementById('in-cgst').value) || 0)/100);
+            const sgst = taxable * ((parseFloat(document.getElementById('in-sgst').value) || 0)/100);
+            const igst = taxable * ((parseFloat(document.getElementById('in-igst').value) || 0)/100);
+            const grandTotal = Math.round(taxable + cgst + sgst + igst);
+
+            db.invoices.put({ billNo, date, customerName, grandTotal }).then(() => window.print());
+        }
+
+        function newInvoice() {
+            if(confirm("Start new invoice? Unsaved form data will be lost.")) {
+                document.getElementById('in-customer').value = '';
+                document.getElementById('in-addr1').value = '';
+                document.getElementById('in-addr2').value = '';
+                document.getElementById('in-gstin').value = '';
+                document.getElementById('in-dc-no').value = '';
+                document.getElementById('in-dc-date').value = '';
+                document.getElementById('in-po-no').value = '';
+                document.getElementById('in-po-date').value = '';
+                document.getElementById('in-pkg').value = '';
+                items = [];
+                initApp();
+            }
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
