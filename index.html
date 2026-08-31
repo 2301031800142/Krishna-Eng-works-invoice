@@ -343,7 +343,7 @@
                     <div class="totals-grid">
                         <div class="words-container">
                             <span class="text-red" style="font-weight: bold; margin-right: 5px;">Rupees :</span>
-                            <span class="text-black text-sm" id="out-words" style="line-height: 1.5;">Zero Only.</span>
+                            <span class="text-black text-sm" id="out-words" style="line-height: 1.5;">Zero</span>
                         </div>
                         <div class="taxes-container text-sm">
                             <div class="tax-row">
@@ -523,7 +523,7 @@
             document.getElementById('out-igst-amt').innerText = igstAmt.toFixed(2);
             
             document.getElementById('out-grandtotal').innerText = `₹ ${grandTotal.toFixed(2)}`;
-            document.getElementById('out-words').innerText = numberToWords(grandTotal) + " Only.";
+            document.getElementById('out-words').innerText = numberToWords(grandTotal);
         }
 
         function numberToWords(num) {
