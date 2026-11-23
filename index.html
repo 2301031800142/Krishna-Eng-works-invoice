@@ -199,7 +199,7 @@
         <h2 style="margin-top: 15px;">Additional & Taxes</h2>
         <div class="form-row">
             <div class="form-group">
-                <label>Pkg. Charge (₹)</label>
+                <label>Package & Freight Charges (₹)</label>
                 <input type="number" id="in-pkg" placeholder="0" oninput="updateInvoice()">
             </div>
             <div class="form-group">
@@ -309,7 +309,7 @@
                             </tr>
                         </thead>
                         <tbody id="out-items-body">
-                            </tbody>
+                        </tbody>
                     </table>
                 </div>
 
@@ -329,7 +329,7 @@
                              <div class="text-black" id="out-subtotal" style="width: 110px; padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">0.00</div>
                          </div>
                          <div style="display: flex; border-bottom: 1px solid var(--red);">
-                             <div class="text-red" style="width: 140px; border-right: 2px solid var(--red); padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">Pkg. Charge</div>
+                             <div class="text-red" style="width: 140px; border-right: 2px solid var(--red); padding: 4px; text-align: right; font-weight: bold; font-size: 10px; line-height: 1.2;">Package & Freight Charges</div>
                              <div class="text-black" id="out-pkg" style="width: 110px; padding: 4px; text-align: right; font-weight: bold; font-size: 12px;">0.00</div>
                          </div>
                          <div style="display: flex; border-bottom: 1px solid var(--red);">
@@ -351,7 +351,7 @@
                                 <div class="tax-val text-black" id="out-igst-amt">0.00</div>
                             </div>
                             <div class="tax-row">
-                                <div class="tax-label text-red">SGST <span id="out-igst-pct2" class="text-black">9</span>%</div>
+                                <div class="tax-label text-red">SGST <span id="out-sgst-pct" class="text-black">9</span>%</div>
                                 <div class="tax-val text-black" id="out-sgst-amt">0.00</div>
                             </div>
                         </div>
@@ -400,6 +400,15 @@
         let items = [];
         const MAX_PRINT_ROWS = 15; 
 
+        // Prevents typed text (like < or ") from breaking the page layout
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
         function initApp() {
             document.getElementById('in-date').valueAsDate = new Date();
             db.invoices.orderBy('id').last().then(lastInvoice => {
@@ -429,13 +438,13 @@
         function renderItemInputs() {
             const wrapper = document.getElementById('items-wrapper');
             wrapper.innerHTML = '';
-            items.forEach((item, index) => {
+            items.forEach((item) => {
                 wrapper.innerHTML += `
                     <div class="item-entry form-group">
                         <button class="remove-btn" onclick="removeItem(${item.id})">X</button>
-                        <input type="text" placeholder="Particulars" value="${item.particulars}" oninput="updateItem(${item.id}, 'particulars', this.value)">
+                        <input type="text" placeholder="Particulars" value="${escapeHtml(item.particulars)}" oninput="updateItem(${item.id}, 'particulars', this.value)">
                         <div class="form-row">
-                            <input type="text" placeholder="HSN" value="${item.hsn}" oninput="updateItem(${item.id}, 'hsn', this.value)">
+                            <input type="text" placeholder="HSN" value="${escapeHtml(item.hsn)}" oninput="updateItem(${item.id}, 'hsn', this.value)">
                             <input type="number" placeholder="Qty" value="${item.qty || ''}" oninput="updateItem(${item.id}, 'qty', this.value)">
                             <input type="number" placeholder="Price" value="${item.price || ''}" oninput="updateItem(${item.id}, 'price', this.value)">
                         </div>
@@ -483,8 +492,8 @@
                 tbody.innerHTML += `
                     <tr class="text-black">
                         <td class="col-sr">${index + 1}</td>
-                        <td class="col-part" style="text-align: left; font-weight: normal;">${item.particulars}</td>
-                        <td class="col-hsn">${item.hsn}</td>
+                        <td class="col-part" style="text-align: left; font-weight: normal;">${escapeHtml(item.particulars)}</td>
+                        <td class="col-hsn">${escapeHtml(item.hsn)}</td>
                         <td class="col-qty">${item.qty || ''}</td>
                         <td class="col-price">${item.price ? item.price.toFixed(2) : ''}</td>
                         <td class="col-amt">${amt ? amt.toFixed(2) : ''}</td>
@@ -517,7 +526,7 @@
             document.getElementById('out-pkg').innerText = pkg.toFixed(2);
             document.getElementById('out-cgst-pct').innerText = cgstPct;
             document.getElementById('out-cgst-amt').innerText = cgstAmt.toFixed(2);
-            document.getElementById('out-igst-pct2').innerText = sgstPct; 
+            document.getElementById('out-sgst-pct').innerText = sgstPct; 
             document.getElementById('out-sgst-amt').innerText = sgstAmt.toFixed(2);
             document.getElementById('out-igst-pct').innerText = igstPct;
             document.getElementById('out-igst-amt').innerText = igstAmt.toFixed(2);
@@ -531,8 +540,9 @@
             const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
             const b = ['','','Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
             if ((num = num.toString()).length > 9) return 'Overflow';
-            n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-            if (!n) return; var str = '';
+            const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+            if (!n) return ''; 
+            let str = '';
             str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
             str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
             str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
@@ -541,7 +551,7 @@
             return str.trim();
         }
 
-        // New Export Function that uses HTML2PDF for direct silent download
+        // Saves to the database, then downloads the PDF directly
         function saveAndDownload() {
             const billNo = document.getElementById('in-billno').value;
             const date = document.getElementById('in-date').value;
@@ -555,24 +565,16 @@
             const igst = taxable * ((parseFloat(document.getElementById('in-igst').value) || 0)/100);
             const grandTotal = Math.round(taxable + cgst + sgst + igst);
 
-            // Save to database first
             db.invoices.put({ billNo, date, customerName, grandTotal }).then(() => {
-                
-                // Select the precise A4 preview block
                 const element = document.getElementById('invoice-preview-element');
-                
-                // Configuration to force high-resolution and strict A4 formatting
                 const opt = {
                     margin:       0,
                     filename:     `Invoice_${billNo}.pdf`,
                     image:        { type: 'jpeg', quality: 1 },
-                    html2canvas:  { scale: 4, scrollY: 0 }, // Scale 4 keeps lines crisp and stops borders from disappearing
+                    html2canvas:  { scale: 4, scrollY: 0 },
                     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
                 };
-
-                // Trigger the direct download
                 html2pdf().set(opt).from(element).save();
-                
             });
         }
 
